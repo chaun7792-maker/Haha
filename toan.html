@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Món Quà Hoàn Hảo - Bản Cuối Cùng</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Montserrat:wght@900&family=Quicksand:wght@500;700&display=swap');
+
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #010103; font-family: 'Quicksand', sans-serif; color: white; }
+        canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
+        
+        /* --- KHỞI ĐẦU: BÓ HOA 💐 --- */
+        #intro-stage { position: absolute; inset: 0; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; background: radial-gradient(circle, #10101a 0%, #010103 100%); transition: opacity 1.5s; }
+        #flower-wrap { font-size: 100px; filter: drop-shadow(0 0 35px #ff4d6d); animation: float 3s infinite ease-in-out; }
+        .blooming { animation: flowerBloom 6s forwards ease-in-out !important; }
+        @keyframes flowerBloom {
+            0% { transform: scale(1) rotate(0deg); opacity: 0; }
+            30% { opacity: 1; }
+            100% { transform: scale(35) rotate(50deg); opacity: 0; }
+        }
+        @keyframes float { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-30px) rotate(5deg); } }
+
+        /* --- VẬT THỂ RƠI --- */
+        .fall-node { position: absolute; z-index: 10; pointer-events: none; }
+        .fall-name { color: #FFD700; font-family: 'Dancing Script', cursive; font-size: 38px; font-weight: 700; text-shadow: 0 0 20px #000; white-space: nowrap; }
+        .fall-avatar { width: 110px; height: 110px; border-radius: 50%; border: 5px solid #fff; object-fit: cover; box-shadow: 0 10px 50px rgba(0,0,0,0.7); }
+
+        /* --- THƯ KHỔNG LỒ --- */
+        #huge-mail { display: none; font-size: 260px; position: absolute; top: -500px; transition: 3.5s cubic-bezier(0.19, 1, 0.22, 1); cursor: pointer; z-index: 50; }
+        #huge-mail.show { top: 22%; }
+        #final-letter { 
+            display: none; position: absolute; width: 85%; max-width: 550px; background: #fff; padding: 40px; 
+            border-radius: 25px; z-index: 2000; transform: scale(0); transition: 1s; border-left: 15px solid #ff4d6d;
+            box-shadow: 0 0 150px rgba(0,0,0,1); text-align: center; box-sizing: border-box;
+        }
+        #final-letter.open { transform: scale(1); }
+        #text-content { font-size: 22px; line-height: 1.8; color: #222; text-align: left; min-height: 100px; }
+        .btn-magic { padding: 18px 40px; background: #ff4d6d; color: white; border: none; border-radius: 40px; cursor: pointer; font-weight: 900; margin-top: 30px; font-size: 18px; box-shadow: 0 10px 20px rgba(255,77,109,0.3); }
+
+        /* --- EDITOR --- */
+        #config-panel { display: none; position: fixed; inset: 0; background: #fff; z-index: 9999; padding: 40px; overflow-y: auto; color: #333; }
+        .panel-content { max-width: 500px; margin: 0 auto; }
+        input, textarea { width: 100%; padding: 14px; margin: 10px 0; border-radius: 10px; border: 1px solid #ccc; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+    <audio id="bg-music" loop></audio>
+    <canvas id="starfield"></canvas>
+    <canvas id="particle-canvas"></canvas>
+
+    <div id="intro-stage" onclick="startShow()">
+        <div id="flower-wrap">💐</div>
+        <p style="margin-top:40px; letter-spacing:4px; font-weight:bold; animation: blink 1.5s infinite">CHẠM ĐỂ MỞ</p>
+    </div>
+
+    <div id="main-stage" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center;">
+        <div id="huge-mail" onclick="openLetter()">📩</div>
+        <div id="final-letter">
+            <div id="text-content"></div>
+            <button class="btn-magic" id="btn-3d" onclick="startParticleShow()">XEM PHÉP MÀU 3D 💖</button>
+        </div>
+    </div>
+
+    <div id="config-panel">
+        <div class="panel-content">
+            <h2 style="color:#ff4d6d; text-align:center;">⚙️ CHỈNH SỬA</h2>
+            <input type="text" id="cfg-names" placeholder="Tên (cách nhau dấu phẩy)">
+            <textarea id="cfg-imgs" rows="3" placeholder="Link ảnh (cách nhau dấu phẩy)"></textarea>
+            <textarea id="cfg-wish" rows="4" placeholder="Lời chúc"></textarea>
+            <input type="text" id="cfg-text3d" placeholder="Chữ 3D cuối (Dùng | để xuống dòng)">
+            <input type="text" id="cfg-music" placeholder="Link nhạc trực tiếp .mp3">
+            <button onclick="generateLink()" style="width:100%; padding:15px; background:#ff4d6d; color:#fff; border:none; border-radius:10px; font-weight:bold;">LƯU & TẠO LINK</button>
+            <input type="text" id="output-url" readonly style="margin-top:20px; background:#f0f0f0;">
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.get('edit') === 'true') document.getElementById('config-panel').style.display = 'block';
+
+        const store = {
+            n: urlParams.get('n') || "Hạnh Phúc, Bình An, Thành Công, Rạng Rỡ",
+            i: urlParams.get('i') || "",
+            w: urlParams.get('w') || "Chúc bạn một hành trình rực rỡ, luôn tràn đầy niềm vui và hạnh phúc bên những người thân yêu!",
+            pt: urlParams.get('pt') || "MÃI LÀ | BẠN THÂN",
+            m: urlParams.get('m') || "https://www.bensound.com/bensound-music/bensound-sunny.mp3"
+        };
+
+        function generateLink() {
+            const finalLink = `${window.location.origin}${window.location.pathname}?n=${encodeURIComponent(document.getElementById('cfg-names').value)}&i=${encodeURIComponent(document.getElementById('cfg-imgs').value)}&w=${encodeURIComponent(document.getElementById('cfg-wish').value)}&pt=${encodeURIComponent(document.getElementById('cfg-text3d').value)}&m=${encodeURIComponent(document.getElementById('cfg-music').value)}`;
+            document.getElementById('output-url').value = finalLink;
+        }
+
+        // --- BẦU TRỜI ---
+        const sky = document.getElementById('starfield'), sCtx = sky.getContext('2d');
+        let stars = [], meteors = [];
+        function initSky() {
+            sky.width = window.innerWidth; sky.height = window.innerHeight;
+            stars = Array.from({length: 200}, () => ({x: Math.random()*sky.width, y: Math.random()*sky.height, r: Math.random()*2, o: Math.random()}));
+        }
+        function drawSky() {
+            sCtx.clearRect(0,0,sky.width, sky.height);
+            sCtx.fillStyle = "#ffffff";
+            stars.forEach(s => {
+                sCtx.globalAlpha = 0.3 + Math.abs(Math.sin(Date.now()*0.001 + s.o*10))*0.7;
+                sCtx.beginPath(); sCtx.arc(s.x, s.y, s.r, 0, Math.PI*2); sCtx.fill();
+            });
+            if(Math.random() < 0.015) meteors.push({x: Math.random()*sky.width + 300, y: -50, s: 12, l: 150});
+            meteors.forEach((m, idx) => {
+                sCtx.strokeStyle = "rgba(255,255,255,0.4)"; sCtx.lineWidth = 2;
+                sCtx.beginPath(); sCtx.moveTo(m.x, m.y); sCtx.lineTo(m.x - m.l, m.y + m.l); sCtx.stroke();
+                m.x -= m.s; m.y += m.s;
+                if(m.y > sky.height + 100) meteors.splice(idx, 1);
+            });
+            requestAnimationFrame(drawSky);
+        }
+
+        // --- FLOW ĐẠO DIỄN ---
+        function startShow() {
+            const audio = document.getElementById('bg-music');
+            audio.src = store.m; audio.play().catch(() => console.log("Audio blocked"));
+            const flower = document.getElementById('flower-wrap');
+            flower.classList.add('blooming');
+            document.querySelector('#intro-stage p').style.display = 'none';
+            
+            setTimeout(() => {
+                document.getElementById('intro-stage').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('intro-stage').style.display = 'none';
+                    initSky(); drawSky();
+                    runFalling();
+                }, 1500);
+            }, 5500);
+        }
+
+        function runFalling() {
+            const names = store.n.split(',').map(v => v.trim());
+            const imgs = store.i.split(',').filter(v => v.trim());
+            let list = [...names.map(v=>({type:'n', val:v})), ...imgs.map(v=>({type:'i', val:v}))].sort(()=>Math.random()-0.5);
+            let i = 0;
+            const sequence = setInterval(() => {
+                if(i >= list.length) {
+                    clearInterval(sequence);
+                    setTimeout(() => {
+                        const hm = document.getElementById('huge-mail');
+                        hm.style.display = 'block'; setTimeout(() => hm.classList.add('show'), 100);
+                    }, 3000);
+                    return;
+                }
+                const data = list[i++];
+                const el = document.createElement(data.type === 'i' ? 'img' : 'div');
+                el.className = `fall-node ${data.type === 'i' ? 'fall-avatar' : 'fall-name'}`;
+                if(data.type === 'i') el.src = data.val; else el.innerText = data.val;
+                el.style.left = (15 + Math.random()*70) + '%';
+                document.body.appendChild(el);
+                el.animate([
+                    { top: '-130px', opacity: 0 },
+                    { top: '30%', opacity: 1 },
+                    { top: '110vh', opacity: 0 }
+                ], { duration: 8000, easing: 'ease-in-out' }).onfinish = () => el.remove();
+            }, 1800);
+        }
+
+        function openLetter() {
+            document.getElementById('huge-mail').style.display = 'none';
+            const letter = document.getElementById('final-letter');
+            letter.style.display = 'block';
+            setTimeout(() => letter.classList.add('open'), 100);
+            let charIdx = 0;
+            const typing = setInterval(() => {
+                document.getElementById('text-content').innerText = store.w.substring(0, charIdx++);
+                if(charIdx > store.w.length) clearInterval(typing);
+            }, 60);
+        }
+
+        // --- HỆ THỐNG HẠT 3D (CẢI TIẾN RÕ NÉT) ---
+        const pCanvas = document.getElementById('particle-canvas'), pCtx = pCanvas.getContext('2d');
+        let dots = [];
+        let isTextMode = false;
+
+        function getPoints(mode, text = "") {
+            pCanvas.width = window.innerWidth; pCanvas.height = window.innerHeight;
+            pCtx.clearRect(0,0,pCanvas.width, pCanvas.height);
+            pCtx.fillStyle = "white";
+            if(mode === 'heart') {
+                for (let y = -15; y < 15; y += 0.4) {
+                    for (let x = -25; x < 25; x += 0.4) {
+                        let nx = x * 0.16, ny = -y * 0.16;
+                        if(Math.pow(nx, 2) + Math.pow(ny - Math.sqrt(Math.abs(nx)), 2) < 2.9) 
+                            pCtx.fillRect(pCanvas.width/2 + x*15, pCanvas.height/2 + y*15, 4, 4);
+                    }
+                }
+            } else {
+                pCtx.font = "900 110px Montserrat"; pCtx.textAlign = "center";
+                let lines = text.split('|');
+                lines.forEach((l, i) => pCtx.fillText(l.trim(), pCanvas.width/2, pCanvas.height/2 + (i - (lines.length-1)/2)*130));
+            }
+            const imgData = pCtx.getImageData(0,0,pCanvas.width, pCanvas.height).data;
+            let res = [];
+            for(let y=0; y<pCanvas.height; y+=5) for(let x=0; x<pCanvas.width; x+=5) 
+                if(imgData[(y*pCanvas.width+x)*4+3] > 128) res.push({x,y});
+            return res;
+        }
+
+        function startParticleShow() {
+            // KHẮC PHỤC LỖI: Ẩn hoàn toàn bức thư và nút để không bị lặp
+            document.getElementById('final-letter').classList.remove('open');
+            setTimeout(() => {
+                document.getElementById('final-letter').style.display = 'none';
+                document.getElementById('main-stage').style.display = 'none';
+            }, 500);
+
+            const targets = getPoints('heart');
+            dots = targets.map(t => ({
+                x: Math.random()*pCanvas.width, y: Math.random()*pCanvas.height,
+                tx: t.x, ty: t.y,
+                r: 2.5 + Math.random()*2,
+                color: Math.random() > 0.4 ? '#ff4d6d' : '#ffffff',
+                a: Math.random()*6.28, orb: 12, spd: 0.05
+            }));
+            
+            function render() {
+                pCtx.clearRect(0,0,pCanvas.width, pCanvas.height);
+                dots.forEach(d => {
+                    d.a += d.spd;
+                    // Nếu là chữ thì đứng yên hơn (orb nhỏ hơn)
+                    let currentOrb = isTextMode ? 2 : d.orb;
+                    let goalX = d.tx + Math.cos(d.a) * currentOrb;
+                    let goalY = d.ty + Math.sin(d.a) * currentOrb;
+                    d.x += (goalX - d.x) * 0.08;
+                    d.y += (goalY - d.y) * 0.08;
+                    pCtx.fillStyle = d.color;
+                    pCtx.shadowBlur = isTextMode ? 5 : 10;
+                    pCtx.shadowColor = d.color;
+                    pCtx.beginPath(); pCtx.arc(d.x, d.y, d.r, 0, 6.28); pCtx.fill();
+                });
+                requestAnimationFrame(render);
+            }
+            render();
+
+            // Chuyển sang chữ rõ nét sau 7 giây
+            setTimeout(() => {
+                isTextMode = true;
+                const textTargs = getPoints('text', store.pt);
+                for(let i=0; i<dots.length; i++) {
+                    let target = textTargs[i % textTargs.length];
+                    dots[i].tx = target.x; dots[i].ty = target.y;
+                    dots[i].spd = 0.02; // Chữ xoay cực chậm để không rối
+                }
+            }, 7000);
+        }
+
+        @keyframes blink { 50% { opacity: 0.3; } }
+    </script>
+</body>
+</html>
